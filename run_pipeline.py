@@ -61,9 +61,7 @@ def main():
     )
     args = parser.parse_args()
 
-    # ──────────────────────────────────────────────────────────────────────────
     # 1) CONFIGURATION (adjust these if your folder names differ)
-    # ──────────────────────────────────────────────────────────────────────────
     PROJECT_ROOT = os.path.dirname(__file__)
 
     # Path to D-FINE’s repository:
@@ -73,14 +71,13 @@ def main():
     DFINE_CONFIG     = os.path.join(DFINE_ROOT, "configs", "dfine", "objects365", "dfine_hgnetv2_x_obj365.yml")
     DFINE_CHECKPOINT = os.path.join(DFINE_ROOT, "checkpoints", "dfine_x_obj365.pth")
 
-    # Input image (user‐supplied via --image)
+    # Input image (user-supplied via --image)
     INPUT_IMAGE = os.path.join(PROJECT_ROOT, args.image)
     if not os.path.isfile(INPUT_IMAGE):
         print(f"Error: Input image not found: {INPUT_IMAGE}")
         sys.exit(1)
 
     # The folder where D-FINE writes all the cropped objects.
-    #  ↳ This must match "output_dir:" (or "crop_folder:") inside your YAML exactly.
     CROP_FOLDER = os.path.join(PROJECT_ROOT, "outputs", "crops", "room")
 
     # Where we’ll dump the final .glb meshes
@@ -93,9 +90,7 @@ def main():
     HUNYUAN_SHAPEDIR = "tencent/Hunyuan3D-2"
     HUNYUAN_PAINTDIR = "tencent/Hunyuan3D-2"
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # 2) Check that the crop folder exists (YAML should create it when inference runs).
-    # ──────────────────────────────────────────────────────────────────────────
+    # 2) Check that the crop folder exists
     if not os.path.isdir(CROP_FOLDER):
         print(
             f"Error: Expected crop folder doesn’t exist:\n  {CROP_FOLDER}\n"
@@ -103,12 +98,9 @@ def main():
         )
         sys.exit(1)
 
-    # Ensure 3D output directory exists
     os.makedirs(OUTPUT_3D_ROOT, exist_ok=True)
 
-    # ──────────────────────────────────────────────────────────────────────────
     # 3) Run D-FINE inference (cropping step)
-    # ──────────────────────────────────────────────────────────────────────────
     try:
         run_dfine_inference(
             dfine_root=DFINE_ROOT,
@@ -122,9 +114,7 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # 4) Gather all crops from CROP_FOLDER
-    # ──────────────────────────────────────────────────────────────────────────
+    # 4) Gather all crops
     crop_patterns = ["*.jpg", "*.jpeg", "*.png"]
     all_crops = []
     for pat in crop_patterns:
@@ -136,28 +126,25 @@ def main():
 
     print(f"✅ Found {len(all_crops)} cropped-object images. Proceeding to HUNYUAN-3D for each one.\n")
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # 5) Initialize HUNYUAN‐3D pipelines on GPU
-    # ──────────────────────────────────────────────────────────────────────────
+    # 5) Initialize HUNYUAN-3D pipelines on GPU
     try:
         print("Loading HUNYUAN-3D DiTFlowMatching (shape) pipeline on", DEVICE, "…")
-        # Load the shape pipeline
         shape_pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
-        HUNYUAN_SHAPEDIR
+            HUNYUAN_SHAPEDIR
         )
         shape_pipeline.to(DEVICE)
+
         print("Loading HUNYUAN-3D Paint pipeline on", DEVICE, "…")
         paint_pipeline = Hunyuan3DPaintPipeline.from_pretrained(
-        HUNYUAN_PAINTDIR
+            HUNYUAN_PAINTDIR,
+            subfolder="hunyuan3d-paint-v2-0"
         )
     except Exception as e:
         print("✖ Failed to initialize HUNYUAN-3D pipelines. Aborting.")
         traceback.print_exc()
         sys.exit(1)
 
-    # ──────────────────────────────────────────────────────────────────────────
     # 6) For each crop: run shape → paint → export .glb
-    # ──────────────────────────────────────────────────────────────────────────
     for idx, crop_path in enumerate(sorted(all_crops)):
         base_name = os.path.splitext(os.path.basename(crop_path))[0]
         print(f"\n--- [{idx + 1}/{len(all_crops)}] Processing crop: {base_name} ---")
@@ -166,23 +153,19 @@ def main():
         os.makedirs(out_subdir, exist_ok=True)
 
         try:
-            # a) Shape pipeline
             print("  • Running HUNYUAN shape pipeline…")
-            shape_results = shape_pipeline(image=crop_path)  # returns a list
+            shape_results = shape_pipeline(image=crop_path)
             mesh = shape_results[0]
 
-            # b) Paint pipeline
             print("  • Running HUNYUAN paint pipeline…")
             paint_results = paint_pipeline(mesh, image=crop_path)
             textured_mesh = paint_results[0]
 
-            # c) Export to .glb
             glb_outpath = os.path.join(out_subdir, f"{base_name}.glb")
             print(f"  • Exporting textured mesh to: {glb_outpath}")
             if hasattr(textured_mesh, "export"):
                 textured_mesh.export(glb_outpath)
             else:
-                # Fallback: try trimesh export
                 import trimesh
                 if isinstance(textured_mesh, trimesh.Trimesh):
                     textured_mesh.export(glb_outpath)
@@ -196,12 +179,10 @@ def main():
         except Exception as crop_e:
             print(f"  ✖ FAILED on crop {base_name}: {crop_e}")
             traceback.print_exc()
-            # Continue with the next crop
             continue
 
     print("\n=== Pipeline complete! All crops processed. ===")
     print(f"Final GLB files live under:\n  {OUTPUT_3D_ROOT}\n")
-
 
 if __name__ == "__main__":
     main()
