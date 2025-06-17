@@ -147,7 +147,7 @@ def main():
         print("Loading HUNYUAN-3D Paint pipeline on", DEVICE, "…")
         paint_pipeline = Hunyuan3DPaintPipeline.from_pretrained(
         HUNYUAN_PAINTDIR
-        ).to(DEVICE)
+        )
     except Exception as e:
         print("✖ Failed to initialize HUNYUAN-3D pipelines. Aborting.")
         traceback.print_exc()
