@@ -141,9 +141,11 @@ def main():
     # ──────────────────────────────────────────────────────────────────────────
     try:
         print("Loading HUNYUAN-3D DiTFlowMatching (shape) pipeline on", DEVICE, "…")
+        # Load the shape pipeline
         shape_pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
         HUNYUAN_SHAPEDIR
-        ).to(DEVICE)
+        )
+        shape_pipeline.to(DEVICE)
         print("Loading HUNYUAN-3D Paint pipeline on", DEVICE, "…")
         paint_pipeline = Hunyuan3DPaintPipeline.from_pretrained(
         HUNYUAN_PAINTDIR
